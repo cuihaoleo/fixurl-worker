@@ -4,9 +4,12 @@ import { DomainReplacingHandler } from './handlers/generic';
 
 const HANDLER_MAP: { [key: string]: (url: URL) => Promise<Response> } = {
   'mp.weixin.qq.com': handleWeixin,
+  'news.ycombinator.com': handleHackerNews,
+  // https://github.com/FxEmbed/FxEmbed
   'twitter.com': DomainReplacingHandler('fixupx.com'),
   'x.com': DomainReplacingHandler('fixupx.com'),
-  'news.ycombinator.com': handleHackerNews,
+  // https://github.com/MinnDevelopment/fxreddit
+  'reddit.com': DomainReplacingHandler('rxddit.com'),
 };
 
 export default {
