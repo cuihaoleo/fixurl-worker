@@ -19,20 +19,31 @@ export default {
     ctx: ExecutionContext,
   ): Promise<Response> {
     const urlParsed = new URL(request.url);
-    const extractedUrl = urlParsed.pathname.slice(1) + urlParsed.search;
+    let extractedUrl = urlParsed.pathname.slice(1) + urlParsed.search;
 
-    let extractedUrlParsed: URL;
+    // Try to parse the extracted URL. If it fails, try adding "http://" prefix.
+    let extractedUrlParsed: URL | undefined;
 
-    try {
-      extractedUrlParsed = new URL(extractedUrl);
-    } catch (e) {
+    for (let _ = 0; _ < 2; _++) {
+      try {
+        extractedUrlParsed = new URL(extractedUrl);
+        break;
+      } catch (e) {
+        extractedUrl = 'https://' + extractedUrl;
+        continue;
+      }
+    }
+
+    if (!extractedUrlParsed) {
       return new Response('Invalid URL', { status: 400 });
     }
 
+    // If the request comes from a browser, just redirect to the extracted URL.
     if (request.headers.get('user-agent')?.startsWith('Mozilla/5.0')) {
       return Response.redirect(extractedUrl, 302);
     }
 
+    // Find the most suitable handler by progressively stripping subdomains.
     let host = extractedUrlParsed.hostname;
     while (!HANDLER_MAP[host] && host.includes('.')) {
       host = host.slice(host.indexOf('.') + 1);
