@@ -1,3 +1,9 @@
+import {
+  OpenGraphMetadataExtractor,
+  generateMinimumHtmlForPreview,
+  TextExtractor,
+} from './generic';
+
 export async function handleWeixin(url: URL) {
   const res = await fetch(url, {
     headers: {
@@ -10,9 +16,29 @@ export async function handleWeixin(url: URL) {
     return new Response('Error fetching the request', { status: 500 });
   }
 
-  return new Response(res.body, {
+  const metadataExtractor = new OpenGraphMetadataExtractor();
+  const contentExtractor = new TextExtractor();
+
+  // Workaround for "Unknown character encoding has been provided" error.
+  const modifiedRes = new Response(res.body, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+
+  await new HTMLRewriter()
+    .on('meta', metadataExtractor)
+    .on('#js_content', contentExtractor)
+    .transform(modifiedRes)
+    .bytes();
+
+  const metadata = metadataExtractor.metadata;
+  if (!metadata.description) {
+    metadata.description = contentExtractor.content;
+  }
+
+  const newHtml = generateMinimumHtmlForPreview(metadata);
+  return new Response(newHtml, {
     headers: {
-      'Content-Security-Policy': "default-src 'none'",
+      'Content-Type': 'text/html; charset=utf-8',
     },
   });
 }

@@ -1,43 +1,39 @@
-function escapeHtml(unsafe: string) {
-  return unsafe
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+import { generateMinimumHtmlForPreview, TextExtractor } from './generic';
 
 export async function handleHackerNews(url: URL) {
   const res = await fetch(url);
 
-  const hackerNewsHandler = {
-    title: '',
-    url: '',
-    element(element: Element) {
-      const href = element.getAttribute('href') || '';
-      this.url = new URL(href, url).href;
-    },
-    text(text: Text) {
-      this.title += text.text;
-    },
+  const titleExtractor = new TextExtractor();
+  const userExtractor = new TextExtractor();
+  const sourceSiteExtractor = new TextExtractor();
+  const topTextExtractor = new TextExtractor();
+
+  await new HTMLRewriter()
+    .on('span.titleline>a', titleExtractor)
+    .on('span.subline>span.sitestr', sourceSiteExtractor)
+    .on('span.subline>a.hnuser', userExtractor)
+    .on('div.toptext', topTextExtractor)
+    .transform(res)
+    .text();
+
+  let title = titleExtractor.content;
+  if (sourceSiteExtractor.content) {
+    title += ` (${sourceSiteExtractor.content})`;
+  }
+
+  let description = `by ${userExtractor.content}`;
+  if (topTextExtractor.content) {
+    description += `\n${topTextExtractor.content}`;
+  }
+
+  const metadata = {
+    title: title,
+    description: description,
+    site_name: 'Hacker News',
+    image: 'https://news.ycombinator.com/y18.svg',
   };
-  await new HTMLRewriter().on('span.titleline>a', hackerNewsHandler).transform(res).text();
 
-  const title = escapeHtml(`${hackerNewsHandler.title}`);
-  const newHtml = `
-    <html>
-      <head>
-        <title>${title}</title>
-        <meta property="og:title" content="${title}"/>
-        <meta property="og:description" content=""/>
-        <meta property="og:site_name" content="Hacker News"/>
-        <meta property="og:image" content="https://news.ycombinator.com/y18.svg"/>
-      </head>
-      <body>
-      </body>
-    </html>
-  `;
-
+  const newHtml = generateMinimumHtmlForPreview(metadata);
   return new Response(newHtml, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
